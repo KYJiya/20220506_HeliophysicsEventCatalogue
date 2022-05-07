@@ -1,11 +1,17 @@
 import requests
 import re
+from datetime import datetime
 from bs4 import BeautifulSoup
+from dateutil.relativedelta import relativedelta
+
+
+now = datetime.now()
+before_one_month = now - relativedelta(months=1)
 
 
 def save_file(data):
     folder = ""
-    filename = "FlareList_YYYYMMDD_HHMMSS.txt"
+    filename = f"FlareList_{now.strftime('%Y%m%d_%H%M%S')}.txt"
     
     f = open(folder+filename, 'w', encoding="utf-8")
     f.write(data)
@@ -16,12 +22,12 @@ def get_data():
     url = "http://hec.helio-vo.eu/hec/hec_gui_fetch.php"
 
     params = {
-        "y_from": "2022",
-        "mo_from": "4",
-        "d_from": "6",
-        "y_to": "2022",
-        "mo_to": "5",
-        "d_to": "6",
+        "y_from": before_one_month.year,
+        "mo_from": before_one_month.month,
+        "d_from": before_one_month.day,
+        "y_to": now.year,
+        "mo_to": now.month,
+        "d_to": now.day,
         "radioremote": "on",
         "titlesearch2": "",
         "gevloc_sxr_flare": "istable",
