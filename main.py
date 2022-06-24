@@ -12,13 +12,9 @@ now = dt.now()
 before_one_month = now - relativedelta(months=1)
 
 
-def save_file(folder, filename, data):
+def make_folder(folder):
     if not os.path.exists(folder):
         os.makedirs(folder)
-
-    f = open(folder + filename, "w", encoding="utf-8")
-    f.write(data)
-    f.close()
 
 
 def get_event_list_all():
@@ -61,6 +57,8 @@ if __name__ == "__main__":
     folder = "data/"
     filename = f"FlareList_{now.strftime('%Y%m%d_%H%M%S')}.txt"
 
+    make_folder(folder)
+
     data_all = get_event_list_all()
     time_data = pd.to_datetime(data_all[0]["Snapshot Time"])
 
@@ -73,5 +71,5 @@ if __name__ == "__main__":
             break
 
     event_list = event_list.iloc[::-1].reset_index(drop=True)
-
+    event_list.to_csv(folder+filename, index=False)
     print(event_list)
