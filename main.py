@@ -1,19 +1,18 @@
 import requests
 import re
 import os
-from datetime import datetime
+from datetime import datetime as dt
 from bs4 import BeautifulSoup
 from dateutil.relativedelta import relativedelta
+import pandas as pd
+from tqdm import tqdm
 
 
-now = datetime.now()
+now = dt.now()
 before_one_month = now - relativedelta(months=1)
 
 
-def save_file(data):
-    folder = "data/"
-    filename = f"FlareList_{now.strftime('%Y%m%d_%H%M%S')}.txt"
-
+def save_file(folder, filename, data):
     if not os.path.exists(folder):
         os.makedirs(folder)
 
@@ -22,65 +21,57 @@ def save_file(data):
     f.close()
 
 
-def get_data():
-    url = "http://hec.helio-vo.eu/hec/hec_gui_fetch.php"
-
-    params = {
-        "y_from": before_one_month.year,
-        "mo_from": before_one_month.month,
-        "d_from": before_one_month.day,
-        "y_to": now.year,
-        "mo_to": now.month,
-        "d_to": now.day,
-        "radioremote": "on",
-        "titlesearch2": "",
-        "gevloc_sxr_flare": "istable",
-    }
-
-    response = requests.get(
+def get_event_list_all():
+    url = "https://www.lmsal.com/solarsoft/latest_events_archive.html"
+    
+    data = pd.read_html(
         url,
-        params=params,
+        header=0,
     )
-
-    html = response.text
-
-    soup = BeautifulSoup(html, "html.parser")
-    data = soup.body.get_text().strip()
 
     return data
 
 
-def retail_data(data):
-    retailed_data = ""
-    match = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.]\d{1}.+", data)
+def get_event_list(time_data):
+    url = "https://www.lmsal.com/solarsoft/ssw/last_events-" + \
+            time_data.strftime("%Y") + \
+            "/last_events_" + \
+            time_data.strftime("%Y%m%d") + "_" + time_data.strftime("%H%M") + \
+            "/index.html"
 
-    while match != None:
-        match_data = data[match.regs[0][0] : match.regs[0][1]]
-        match_start = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", match_data)
-        match_start_datetime = datetime.strptime(
-            match_data[match_start.regs[0][0] : match_start.regs[0][1]],
-            "%Y-%m-%d %H:%M:%S",
-        )
-        match_end_data = match_data[match_start.regs[0][1] :]
-        match_end = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", match_end_data)
-        match_end_datetime = datetime.strptime(
-            match_end_data[match_end.regs[0][0] : match_end.regs[0][1]],
-            "%Y-%m-%d %H:%M:%S",
-        )
+    data = pd.read_html(
+        url,
+        header=0,
+    )
 
-        # DELETE the row outside specific time
-        if before_one_month < match_start_datetime and match_end_datetime < now:
-            retailed_data = retailed_data + match_data + "\n"
+    return data
 
-        data = data[match.regs[0][1] :]
-        match = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.]\d{1}.+", data)
 
-    return retailed_data
+def merge_event_list(event_list, data):
+    data = data.drop(["Event#","EName"], axis=1)
+    data = data[data["Derived Position"].str.contains('\d{4}')]
+    event_list = pd.concat([data, event_list])
+    event_list = event_list.drop_duplicates(["Start","Stop","Peak","GOES Class","Derived Position"])
+    event_list = event_list.reset_index(drop=True)
 
+    return event_list
+    
 
 if __name__ == "__main__":
+    folder = "data/"
+    filename = f"FlareList_{now.strftime('%Y%m%d_%H%M%S')}.txt"
 
-    data = get_data()
-    data = retail_data(data)
+    data_all = get_event_list_all()
+    time_data = pd.to_datetime(data_all[0]["Snapshot Time"])
 
-    save_file(data)
+    event_list = pd.DataFrame()
+    for v in tqdm(time_data):
+        if v >= before_one_month:
+            data = get_event_list(v)
+            event_list = merge_event_list(event_list, data[0])
+        else:
+            break
+
+    event_list = event_list.iloc[::-1].reset_index(drop=True)
+
+    print(event_list)
