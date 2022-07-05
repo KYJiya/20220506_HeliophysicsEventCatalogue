@@ -2,19 +2,31 @@ import requests
 import re
 import os
 from datetime import datetime as dt
+from datetime import timezone as tz
 from bs4 import BeautifulSoup
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from tqdm import tqdm
 
 
-now = dt.now()
-before_one_month = now - relativedelta(months=1)
+utc_now = dt.now(tz.utc)
+before_one_month = utc_now - relativedelta(months=1)
 
 
 def make_folder(folder):
     if not os.path.exists(folder):
         os.makedirs(folder)
+
+
+def get_event_list_latest():
+    url = "https://www.lmsal.com/solarsoft/latest_events/"
+    
+    data = pd.read_html(
+        url,
+        header=0,
+    )
+
+    return data
 
 
 def get_event_list_all():
@@ -55,14 +67,16 @@ def merge_event_list(event_list, data):
 
 if __name__ == "__main__":
     folder = "data/"
-    filename = f"FlareList_{now.strftime('%Y%m%d_%H%M%S')}.txt"
+    filename = f"FlareList_{utc_now.astimezone().strftime('%Y%m%d_%H%M%S')}.txt"
 
     make_folder(folder)
 
     data_all = get_event_list_all()
-    time_data = pd.to_datetime(data_all[0]["Snapshot Time"])
+    time_data = pd.to_datetime(data_all[0]["Snapshot Time"], utc=True)
 
     event_list = pd.DataFrame()
+    data = get_event_list_latest()
+    event_list = merge_event_list(event_list, data[0])
     for v in tqdm(time_data):
         if v >= before_one_month:
             data = get_event_list(v)
